@@ -1,0 +1,402 @@
+usernfo = sys.get_user()
+usernfo["root"] = usernfo["euid"]["uid"] == 0
+
+multiset = ["AcceptEnv", "AllowGroups", "AllowUsers", "DenyGroups", "DenyUsers"]
+# Functions for safely reading files
+def effective_perms(f):
+    """Return if the user has permisions to r/w/x this file or directory
+    return:
+        r - Can the user read the file
+        w - Can the user write the file
+        x - Can the user execute the file
+    """
+    PERM_READ = 4
+    PERM_WRITE = 2
+    PERM_EXEC = 1
+    res = ""
+    f_user = int(f["permissions"][-3]) # User byte
+    f_group = int(f["permissions"][-2]) # Group byte
+    f_world = int(f["permissions"][-1]) # World byte applies to everyone
+
+    # If the user isnt root and the user doesnt own the file, clear the user byte   
+    if not usernfo["root"] and f["owner"] not in (usernfo["euid"]["name"], usernfo["uid"]["name"]):
+        f_user = 0
+    
+    # TODO: https://github.com/spellshift/realm/issues/570
+    # Will NOT match any group other than primary until #570 is fixed
+
+    # If the user isnt root and the group doesnt own the file, clear the group byte    
+    if not usernfo["root"] and f["group"] not in (str(usernfo["egid"]), str(usernfo["gid"])):
+        f_group = 0
+
+    # Add the perms if they match
+    if any((f_world & PERM_READ, f_group & PERM_READ, f_user & PERM_READ)):
+        res += "r"
+    if any((f_world & PERM_WRITE, f_group & PERM_WRITE, f_user & PERM_WRITE)):
+        res += "w"
+    if any((f_world & PERM_EXEC, f_group & PERM_EXEC, f_user & PERM_EXEC)):
+        res += "x"
+
+    # TODO: https://github.com/spellshift/realm/issues/572
+    # strip write perm if file is immutable
+    return res
+
+def perms(*path, _root="/", _tree={}):
+    """Return the permisions and effective permissions of files or directories. If the user
+    does not have permission to list the file or parent directory, it will be omitted. Use this
+    function to check if you can r/w/x a file before calling other functions on it
+
+    Because the entire file tree may be traversed, it is most efficient to call this with all the paths
+    that will be accessed at once rather than many times over.
+
+    This function recurses on itself, only call with the paths param and do not use _root, or _tree
+    """
+    if path:
+        for p in path:
+            t = _tree
+            for i in p.strip("/").split("/"):
+                if i not in t:
+                    t[i] = {}
+                t = t[i]
+    res = {}
+    for f in file.list(_root):
+        if f["file_name"] not in _tree:
+            continue
+        f["effective_perms"] = effective_perms(f)
+        if _tree[f["file_name"]] == {}:
+            # This is the end of the line, add the results
+            res[_root + f["file_name"]] = f
+        elif f['type'] == "Directory":
+            if "r" not in f["effective_perms"]:
+                continue # We cant read this so it doesnt get returned and neither does any files in it
+            res.update(perms("", _root=_root + f["file_name"] + "/", _tree=_tree[f["file_name"]]))
+    return res
+
+def glob(s, pattern):
+    #if pattern == s or pattern == "*":
+    #    return True
+    p = pattern.split("*")
+    # Check the first chunk
+    chunk = p.pop(0)
+    if not s.startswith(chunk):
+        return False
+    s = s[len(chunk):]
+    # Check the last chunk
+    if p:
+        chunk = p.pop()
+        if chunk:
+            if not s.endswith(chunk):
+                return False
+            s = s[:-len(chunk)]
+    
+    # Check all the middle chunks
+    for part in p:
+        if part not in s:
+            return False
+        s = s[s.index(part)+1:]
+    return True
+
+# Functions for gathering system info and sshd info
+def parse_sshd_config(config: str) -> "dict":
+    """Parse all the 'Match' blocks out of an SSHD config file"""
+    # Currently does not show things that are set multiple times (e.g. AcceptEnv)
+    # Not really needed though
+    result_config = {}
+    blocks = {}
+    current_block = ""
+    for line in config.split("\n"):
+        if not line.strip() or line.startswith("#"):
+            continue
+        directive, value = line.split(None, 1)
+        value = " ".join(value.split())
+        if not directive:
+            continue
+        if directive == "Match":
+            current_block = value
+            blocks[value] = {}
+        elif not blocks:
+            # SSHD used the FIRST value specified, not the last
+            if directive not in result_config:
+                result_config[directive] = value
+        else:
+            # Add it to the current block
+            #directive, _, value = line.strip().partition(" ")
+            blocks[current_block][directive] = value
+    
+    # TODO: Handle INCLUDES
+    result_config["Matches"] = blocks
+    return result_config
+
+def get_users_and_groups():
+    users = {}
+    files = perms("/etc/passwd", "/etc/group", "/etc/group-")
+
+    # Parse the passwd file
+    if "r" in files.get("/etc/passwd", {}).get("effective_perms", ""):
+        for line in file.read("/etc/passwd").splitlines():
+            if not line.strip():
+                continue
+            user, _ = line.split(":", 1)
+            users[user] = {user:True}
+
+    grp = ""
+    if "r" in files.get("/etc/group", {}).get("effective_perms", ""):
+        # I can read group. Best case scenario
+        grp = "/etc/group"
+    elif "r" not in files.get("/etc/group-", {}).get("effective_perms", ""):
+        # I cant read group, but I can read the backup, second base case scenario
+        grp = "/etc/group-"
+
+    if grp:        
+        for line in file.read(grp).splitlines():
+            if not line.strip():
+                continue
+            grp, _, _, grpusers = line.split(":", 4)
+            for user in grpusers.split(","):
+                if user not in users:
+                    users[user] = {grp: True}
+                else:
+                    users[user][grp] = True
+
+    for user, group in users.items():
+        users[user] = list(group.keys())
+    return users
+
+def can_user_login(user: str, groups: list[str], config: dict):
+    def match(v, conditions):
+        """Check if a value matches conditions
+        
+        "x", "x,y,z" -> True
+        "x", "y,*" -> True
+        "x", *,!x" -> True
+        """
+        applies_to_me = False
+        for c in conditions.split(","):
+            if c == "*":
+                applies_to_me = True
+            if isinstance(v, list):
+                if c[0] == "!":
+                    # I am in this group, so I dont count
+                    for i in v:
+                        if glob(i, c[1:]):
+                            return False
+                for i in v:
+                    if glob(i, c):
+                        applies_to_me = True
+            else:
+                if c == v:
+                    applies_to_me = True
+                if c[0] == "!" and c[1:] == v:
+                    return False
+        return applies_to_me
+
+    def add_matched_directives(match, directives):
+        """from man sshd_config:
+            If a keyword appears in multiple Match blocks that are satisfied,
+            only the first instance of the keyword is applied.
+        """
+        for k, v in directives.items():
+            if k not in matched_directives:
+                matched_directives[k] = (v, match)
+    usercnf = dict(config)
+
+    matched_directives = {}
+
+    for block, rules in config["Matches"].items():
+        block = block.split()
+        if block == ["ALL"]:
+            add_matched_directives("Match ALL", rules)
+            continue
+
+        if len(block) != 2:
+            print("Bad block:", block, "\n")
+            continue # We dont support Matches with multiple conditions
+
+        # Check user-specific blocks
+        if user and block[0] == "User":
+            if match(user, block[1]):
+                add_matched_directives("Match " + " ".join(block), rules)
+        # Check group-specific blocks
+        if groups and block[0] == "Group":
+            if match(groups, block[1]):
+                add_matched_directives("Match " + " ".join(block), rules)
+
+    # Apply the matched rules to our config so we essentially have a config specific to the
+    # user/group
+    usercnf.update(matched_directives)
+
+    def retval(reason, directive, value=""):
+        """Prepare a dict response with the status, rejecting directive, and the source
+        of the directive"""
+        if not value: value = usercnf.get(directive)
+        source = ""
+        if isinstance(value, tuple):
+            source = value[1]
+            value = value[0]
+        if directive:
+            directive = directive + " " + value
+        return {
+            "status": reason,
+            "directive": directive,
+            "source": source
+        }
+    
+    if user == "root" and not usercnf.get("PermitRootLogin", "no").lower() == "yes":
+        return retval("BLOCKED", "PermitRootLogin", "no")
+
+    # Check Users and groups
+    lst = usercnf.get("DenyGroups", "")
+    if lst:
+        for dg in lst.split():
+            for g in groups:
+                if glob(g, dg):
+                    return retval("BLOCKED", "DenyGroups")
+    
+    lst = usercnf.get("AllowGroups", "")
+    if lst:
+        allowed = False
+        for ag in lst.split():
+            for g in groups:
+                if glob(g, ag):
+                    allowed = True
+        if not allowed:
+            return retval("BLOCKED", "AllowGroups")
+    lst = usercnf.get("DenyUsers", "")
+    if lst:
+        for du in lst.split():
+            if glob(user, du):
+                return retval("BLOCKED", "DenyUsers")
+    lst = usercnf.get("AllowUsers", "")
+    if lst:
+        allowed = False
+        for au in lst.split():
+            if glob(user, au):
+                allowed = True
+        if not allowed:
+            return retval("BLOCKED", "AllowUsers")
+    
+    # Check for RESTRICTED next
+    for directive in ["ForceCommand", "ChrootDirectory"]:
+        if directive in usercnf:
+            return retval("RESTRICTED", directive)
+
+
+    if usercnf.get("PasswordAuthentication", "yes").lower() == "no":
+        return retval("RESTRICTED", "PasswordAuthentication", "no")
+
+    # If no restrictive rules found, assume full shell
+    return retval("ALLOWED", "")
+
+full_config = """
+Port 22
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostKey /etc/ssh/ssh_host_ed25519_key
+SyslogFacility AUTHPRIV
+LogLevel VERBOSE
+LoginGraceTime 60
+PermitRootLogin no
+StrictModes yes
+MaxAuthTries 6
+MaxSessions 10
+PubkeyAuthentication no
+AuthorizedKeysFile .ssh/authorized_keys
+HostbasedAuthentication no
+IgnoreUserKnownHosts yes
+IgnoreRhosts yes
+PermitEmptyPasswords no
+PasswordAuthentication yes
+ChallengeResponseAuthentication no
+GSSAPIAuthentication yes
+GSSAPICleanupCredentials no
+UsePAM yes
+AllowAgentForwarding no
+AllowTcpForwarding no
+X11Forwarding yes
+UsePrivilegeSeparation yes
+PermitTunnel no
+AcceptEnv LC_IDENTIFICATION LC_ALL LANGUAGE
+Subsystem sftp    /usr/libexec/openssh/sftp-server
+Match Group *,!safe
+    ChrootDirectory /var/chroot
+"""
+confs = [
+    """
+    Match Group *,!safe
+    ChrootDirectory /var/chroot
+    """,
+    """
+    Match User root
+    AllowGroups sudo
+    """,
+    """
+    Match Group developers
+    ForceCommand /bin/bash -c "source dev_env.sh; $SHELL"
+    """,
+    """
+    Match User bob
+    ChrootDirectory /home/bob
+    """,
+    """
+    Match User !alice
+    DenyGroups *
+    """,
+    """
+    Match Group !developers
+    AllowGroups limited_user
+    """,
+    """
+    Match User john
+    AuthorizedKeysFile /home/john/.ssh/authorized_ed25519_keys
+    PubkeyAuthentication yes
+    Match User jane
+    PermitRootLogin no
+    AllowGroups sudo
+    """,
+    """
+    Match Group developers
+    ChrootDirectory /srv/code
+    ForceCommand /bin/bash -c "source dev_env.sh; $SHELL"
+    Match Group admins
+    AllowTcpForwarding yes
+    X11Forwarding yes
+    Match Group users
+    AllowGroups limited_user
+    DenyGroups sudo
+    """,
+    """
+    Match User bob
+    Match LocalTime 8:00-18:00
+    AllowUsers bob@office_ip
+    Match User alice
+    Match LocalTime 10:00-16:00
+    AllowUsers alice@home_ip
+    """,
+    """
+    Match User root
+    DenyUsers *@malicious_country
+    Match Group finance
+    AllowGroups finance
+    DenyUsers *@unknown_region
+    """,
+    """
+    Match Group developers
+    ForceCommand /bin/zsh
+    Match Group users
+    ForceCommand /bin/bash
+    """
+]
+
+def main():
+    for c in confs:
+        users = {
+            "redteam": ["sudo", "redteam"],
+            "blueteam": ["sudo", "safe"],
+            "root": ["root"]
+        }
+        blocks = parse_sshd_config(c)
+        print("USER\tGROUP\tACCESS\tREASON\n")
+        for u, g in users.items():
+            status = can_user_login(u, g, blocks)
+            print(u, status, "\n")
+main()

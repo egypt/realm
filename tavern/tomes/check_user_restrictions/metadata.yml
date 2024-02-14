@@ -1,0 +1,14 @@
+name: Exfil Interesting Files
+description: Search through users home directories and find files of interest for upload.
+author: micahjmartin
+support_model: FIRST_PARTY
+tactic: Collection
+paramdefs:
+- label: Endpoint
+  name: url
+  placeholder: https://file.server/upload
+  type: string
+- label: Search Strings
+  name: toks
+  placeholder: P@ssw0rd rootkit
+  type: string

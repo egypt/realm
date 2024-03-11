@@ -169,7 +169,7 @@ export const useTasks = (defaultQuery?: DEFAULT_QUERY_TYPE, id?: string) => {
     },[]);
 
     // get tasks
-    const { loading, error, data, refetch} = useQuery(GET_TASK_QUERY,  {variables: constructDefaultQuery(),  notifyOnNetworkStatusChange: true});
+    const { loading, error, data, refetch, startPolling, stopPolling} = useQuery(GET_TASK_QUERY,  {variables: constructDefaultQuery(),  notifyOnNetworkStatusChange: true});
 
     const updateTaskList = useCallback((afterCursor?: string | undefined, beforeCursor?: string | undefined) => {
         const defaultQuery = constructDefaultQuery(search, afterCursor, beforeCursor);
@@ -182,7 +182,12 @@ export const useTasks = (defaultQuery?: DEFAULT_QUERY_TYPE, id?: string) => {
         updateTaskList();
     },[updateTaskList]);
 
-
+    useEffect(() => {
+      startPolling(60000);
+      return () => {
+          stopPolling();
+      }
+  }, [startPolling, stopPolling])
 
     return {
         data,

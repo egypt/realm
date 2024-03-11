@@ -5,19 +5,21 @@ import { GET_HOST_QUERY, GET_HOST_TASK_SUMMARY } from "../../../utils/queries";
 import BeaconAccordion from "./BeaconAccordion";
 import EditableHostHeader from "./EditableHostHeader";
 import HostStatistics from "./HostStatistics";
+import { useEffect } from "react";
 
 
 const HostContent = () => {
     const { hostId } = useParams();
-    const { loading, data, error } = useQuery(GET_HOST_QUERY, {
+    const { loading, data, error, startPolling, stopPolling } = useQuery(GET_HOST_QUERY, {
         variables: {
             "where": {
                 "id": hostId
             }
-        }
+        },
+        notifyOnNetworkStatusChange: true
     });
 
-    const { loading: taskLoading, data: taskData, error: taskError } = useQuery(GET_HOST_TASK_SUMMARY, {
+    const { loading: taskLoading, data: taskData, error: taskError, startPolling: summaryStartPolling, stopPolling: summaryStopPolling } = useQuery(GET_HOST_TASK_SUMMARY, {
         variables: {
             "where": {
                 "hasBeaconWith": {
@@ -26,8 +28,18 @@ const HostContent = () => {
                     }
                 }
             }
-        }
+        },
+        notifyOnNetworkStatusChange: true
     });
+
+    useEffect(() => {
+        summaryStartPolling(60000)
+        startPolling(60000);
+        return () => {
+            stopPolling();
+            summaryStopPolling();
+        }
+    }, [startPolling, stopPolling, summaryStartPolling, summaryStopPolling])
 
     const host = data?.hosts && data?.hosts.length > 0 ? data.hosts[0] : null as HostType | null;
 

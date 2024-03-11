@@ -11,7 +11,7 @@ import OverviewChartWrapper from "./components/OverviewChartWrapper";
 
 
 export const Dashboard = () => {
-    const { loading, error, data, refetch } = useQuery(GET_TASK_QUERY, {
+    const { loading, error, data, startPolling: taskStartPolling, stopPolling: taskStopPolling } = useQuery(GET_TASK_QUERY, {
         variables: {
             "orderBy": [{
                 "direction": "ASC",
@@ -21,11 +21,16 @@ export const Dashboard = () => {
         notifyOnNetworkStatusChange: true
     });
 
-    const { loading: hostLoading, data: hosts, error: hostError } = useQuery(GET_HOST_QUERY);
+    const { loading: hostLoading, data: hosts, error: hostError, startPolling: hostStartPolling, stopPolling: hostStopPolling } = useQuery(GET_HOST_QUERY, { notifyOnNetworkStatusChange: true });
 
     useEffect(() => {
-        refetch();
-    }, [refetch]);
+        hostStartPolling(60000)
+        taskStartPolling(60000);
+        return () => {
+            hostStopPolling();
+            taskStopPolling();
+        }
+    }, [hostStopPolling, taskStopPolling, hostStartPolling, taskStopPolling])
 
 
     function getOverviewWrapper() {

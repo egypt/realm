@@ -242,7 +242,7 @@ export const useQuests = (pagination: boolean, id?: string) => {
     },[constructBeaconFilterQuery, constructTagFilterQuery, constructHostFilterQuery, constructPlatformFilterQuery]);
 
 
-    const { loading, data, error, refetch } = useQuery(
+    const { loading, data, error, refetch, startPolling, stopPolling } = useQuery(
       id ? GET_QUEST_BY_ID_QUERY : GET_QUEST_QUERY, {variables: constructDefaultQuery(),  notifyOnNetworkStatusChange: true}
       );
 
@@ -256,6 +256,13 @@ export const useQuests = (pagination: boolean, id?: string) => {
     useEffect(()=> {
       updateQuestList();
   },[updateQuestList]);
+
+    useEffect(() => {
+      startPolling(60000);
+      return () => {
+          stopPolling();
+      }
+  }, [startPolling, stopPolling])
 
     return {
         data,

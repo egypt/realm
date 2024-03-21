@@ -12,7 +12,7 @@ type EditablePageHeaderProps = {
     loading: boolean;
 }
 export const EditablePageHeader: FC<EditablePageHeaderProps> = ({ questId, data, error, loading }) => {
-
+    console.log(data);
     return (
         <div className="flex flex-row justify-between w-full">
             <div className="flex flex-row gap-2 items-center">

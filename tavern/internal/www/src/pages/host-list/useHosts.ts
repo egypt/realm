@@ -1,21 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { FilterBarOption, HostType } from "../utils/consts";
+import { useCallback, useEffect, useState } from "react";
+import { HostType } from "../../utils/consts";
 import { useQuery } from "@apollo/client";
-import { GET_HOST_QUERY } from "../utils/queries";
-import { PrincipalAdminTypes, TableRowLimit } from "../utils/enums";
-import { convertArrayOfObjectsToObject, getFilterNameByTypes, getOfflineOnlineStatus } from "../utils/utils";
+import { GET_HOST_QUERY } from "../../utils/queries";
+import { PrincipalAdminTypes, TableRowLimit } from "../../utils/enums";
+import { convertArrayOfObjectsToObject, getFilterNameByTypes, getOfflineOnlineStatus } from "../../utils/utils";
 import { formatDistance } from "date-fns";
-import { useLocation } from "react-router-dom";
+import { useFilters } from "../../context/FilterContext";
 
 export const useHosts = (pagination: boolean, id?: string) => {
     const currentDate = new Date();
-    const {state} = useLocation();
     const [page, setPage] = useState<number>(1);
-
-    const defaultFilter = useMemo(() : Array<FilterBarOption> => {
-        return getDefaultFilter(state);
-    },[state]);
-    const [filtersSelected, setFiltersSelected] = useState<Array<any>>(defaultFilter);
+    const {filters} = useFilters();
 
     const constructDefaultQuery = useCallback((afterCursor?: string | undefined, beforeCursor?: string | undefined) => {
         return getDefaultHostQuery(pagination, afterCursor, beforeCursor, id);
@@ -31,14 +26,10 @@ export const useHosts = (pagination: boolean, id?: string) => {
 
     const updateHosts = useCallback((afterCursor?: string | undefined, beforeCursor?: string | undefined) => {
         const defaultQuery = constructDefaultQuery(afterCursor, beforeCursor);
-        const queryWithFilter =  constructFilterBasedQuery(defaultQuery, filtersSelected);
+        const queryWithFilter =  constructFilterBasedQuery(defaultQuery, filters.beaconFields);
         refetch(queryWithFilter);
-      },[constructDefaultQuery, constructFilterBasedQuery, refetch, filtersSelected]);
+      },[filters, constructDefaultQuery, constructFilterBasedQuery, refetch]);
 
-    const handleFilterChange = (filters: Array<any>)=> {
-        setPage(1);
-        setFiltersSelected(filters);
-    }
 
     useEffect(()=>{
         updateHosts();
@@ -66,8 +57,6 @@ export const useHosts = (pagination: boolean, id?: string) => {
         page,
         setPage,
         updateHosts,
-        filtersSelected,
-        setFiltersSelected: handleFilterChange
     }
 };
 
@@ -90,16 +79,6 @@ const getFormatForPrincipal = (host: HostType) => {
         }
     }
     return finalList;
-};
-
-const getDefaultFilter = (state: Array<FilterBarOption>) => {
-    const allTrue  = state && Array.isArray(state) && state.every((stateItem: FilterBarOption) => 'kind' in stateItem && 'value' in stateItem && 'name' in stateItem);
-    if(allTrue){
-        return state;
-    }
-    else{
-        return [];
-    }
 };
 
 const getDefaultHostQuery = (pagination: boolean, afterCursor?: string | undefined, beforeCursor?: string | undefined, id?: string | undefined) => {

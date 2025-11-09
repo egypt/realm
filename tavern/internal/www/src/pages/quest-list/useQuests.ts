@@ -1,39 +1,13 @@
 import { useQuery } from "@apollo/client";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
-import { FilterBarOption } from "../utils/consts";
-import { TableRowLimit } from "../utils/enums";
-import { GET_QUEST_BY_ID_QUERY, GET_QUEST_QUERY } from "../utils/queries";
-import { getFilterNameByTypes } from "../utils/utils";
+import { useCallback, useEffect,  useState } from "react";
+import { TableRowLimit } from "../../utils/enums";
+import { GET_QUEST_BY_ID_QUERY, GET_QUEST_QUERY } from "../../utils/queries";
+import { getFilterNameByTypes } from "../../utils/utils";
+import { Filters, useFilters } from "../../context/FilterContext";
 
 export const useQuests = (pagination: boolean, id?: string) => {
-    const {state} = useLocation();
     const [page, setPage] = useState<number>(1);
-    const [search, setSearch] = useState("");
-
-    const defaultFilter = useMemo(() : Array<FilterBarOption> => {
-      const allTrue  = state && Array.isArray(state) && state.every((stateItem: FilterBarOption) => 'kind' in stateItem && 'value' in stateItem && 'name' in stateItem);
-      if(allTrue){
-          return state;
-      }
-      else{
-          return [];
-      }
-    },[state]);
-
-    const [filtersSelected, setFiltersSelected] = useState<Array<any>>(defaultFilter);
-
-
-
-    const handleFilterChange = (filters: Array<any>)=> {
-        setPage(1);
-        setFiltersSelected(filters);
-      }
-
-      const handleSearchChange = (search: string)=> {
-        setPage(1);
-        setSearch(search);
-      }
+    const {filters} = useFilters();
 
     const constructDefaultQuery = useCallback((searchText?: string, afterCursor?: string | undefined, beforeCursor?: string | undefined) => {
         const defaultRowLimit = TableRowLimit.QuestRowLimit;
@@ -228,18 +202,51 @@ export const useQuests = (pagination: boolean, id?: string) => {
       return fq;
     },[]);
 
-    const constructFilterBasedQuery = useCallback((filtersSelected: Array<any>, currentQuery: any) => {
+    const constructTaskOutputQuery = useCallback((query: any, taskOutput: any) => {
+      const fq = query;
+
+      if(taskOutput){
+        fq.where.and = fq.where.and.concat({
+          "hasTasksWith": {
+            "outputContains": taskOutput
+          }
+        });
+        fq.whereFinishedTask.and = fq.whereFinishedTask.and.concat({
+          "outputContains": taskOutput
+       });
+        fq.whereOutputTask.and = fq.whereOutputTask.and.concat({
+          "outputContains": taskOutput
+        });
+        fq.whereErrorTask.and =fq.whereErrorTask.and.concat({
+          "outputContains": taskOutput
+        });
+        fq.whereTotalTask.and = fq.whereTotalTask.and.concat({
+          "outputContains": taskOutput
+        });
+      }
+
+      return fq;
+    },[]);
+
+    const constructFilterBasedQuery = useCallback((filters: Filters, currentQuery: any) => {
       let fq = currentQuery;
-      const {beacon: beacons, group: groups, service: services, platform: platforms, host:hosts} = getFilterNameByTypes(filtersSelected);
+      const {beacon: beacons, group: groups, service: services, platform: platforms, host:hosts} = getFilterNameByTypes(filters.beaconFields);
 
       fq = constructBeaconFilterQuery(fq, beacons);
       fq = constructTagFilterQuery(fq, groups, "group");
       fq = constructTagFilterQuery(fq, services, "service");
       fq = constructHostFilterQuery(fq, hosts);
       fq = constructPlatformFilterQuery(fq, platforms);
+      fq = constructTaskOutputQuery(fq, filters.taskOutput);
 
       return fq;
-    },[constructBeaconFilterQuery, constructTagFilterQuery, constructHostFilterQuery, constructPlatformFilterQuery]);
+    },[
+      constructBeaconFilterQuery,
+      constructTagFilterQuery,
+      constructHostFilterQuery,
+      constructPlatformFilterQuery,
+      constructTaskOutputQuery
+    ]);
 
 
     const { loading, data, error, refetch } = useQuery(
@@ -247,25 +254,25 @@ export const useQuests = (pagination: boolean, id?: string) => {
       );
 
     const updateQuestList = useCallback((afterCursor?: string | undefined, beforeCursor?: string | undefined) => {
-      const defaultQuery = constructDefaultQuery(search, afterCursor, beforeCursor);
-      // Add filter handling
-      const queryWithFilter =  constructFilterBasedQuery(filtersSelected , defaultQuery) as any;
+      const defaultQuery = constructDefaultQuery(filters.questName, afterCursor, beforeCursor);
+      const queryWithFilter =  constructFilterBasedQuery(filters, defaultQuery) as any;
       refetch(queryWithFilter);
-    },[search, filtersSelected, constructDefaultQuery, constructFilterBasedQuery, refetch]);
+    },[filters, constructDefaultQuery, constructFilterBasedQuery, refetch]);
 
     useEffect(()=> {
       updateQuestList();
-  },[updateQuestList]);
+    },[updateQuestList]);
+
+    useEffect(()=>{
+      setPage(1);
+    },[filters])
 
     return {
         data,
         loading,
         error,
         page,
-        filtersSelected,
         setPage,
-        setSearch: handleSearchChange,
-        setFiltersSelected: handleFilterChange,
         updateQuestList
     }
 }

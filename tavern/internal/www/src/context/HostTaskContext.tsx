@@ -1,6 +1,6 @@
 import React, { createContext, Dispatch, SetStateAction } from "react";
 import { useParams } from "react-router-dom";
-import { useTasks } from "../hooks/useTasks";
+import { useTasks } from "../pages/tasks/useTasks";
 import { DEFAULT_QUERY_TYPE } from "../utils/enums";
 
 export type HostTaskContextQueryType = {

@@ -109,8 +109,8 @@ export const BeaconFilterBar = (props: Props) => {
     };
 
     return (
-        <div>
-            <Heading size="sm" mb={2}> Filter by platform, service, group, hosts, and beacon</Heading>
+        <div className="flex flex-col gap-1">
+            <label className=" font-medium text-gray-700">Beacon fields</label>
             <Select
                 isSearchable={true}
                 isMulti

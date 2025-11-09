@@ -221,6 +221,21 @@ export const GET_QUEST_QUERY = gql`
     }
 `;
 
+export const GET_QUEST_NAME = gql`
+    query GetQuestName(
+        $where: QuestWhereInput,
+    ){
+        quests(where: $where){
+            edges{
+                node{
+                    id
+                    name
+                }
+            }
+        }
+    }
+`;
+
 export const GET_QUEST_BY_ID_QUERY = gql`
     query GetQuests(
         $where: QuestWhereInput,

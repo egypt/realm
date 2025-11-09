@@ -4,7 +4,7 @@ import { EmptyState, EmptyStateType } from "../../../components/tavern-base-ui/E
 import TablePagination from "../../../components/tavern-base-ui/TablePagination";
 import { DEFAULT_QUERY_TYPE, TableRowLimit } from "../../../utils/enums";
 import FreeTextSearch from "../../../components/tavern-base-ui/DebouncedFreeTextSearch";
-import { useTasks } from "../../../hooks/useTasks";
+import { useTasks } from "../../tasks/useTasks";
 import Button from "../../../components/tavern-base-ui/button/Button";
 import TaskCard from "../../../features/task-card/TaskCard";
 import { Task } from "../../../utils/consts";

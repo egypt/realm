@@ -7,9 +7,10 @@ type Props = {
     placeholder: string;
     defaultValue?: string;
     setSearch: (args: string) => void;
+    isDisabled?: boolean;
 }
 const FreeTextSearch = (props: Props) => {
-    const { placeholder, defaultValue, setSearch } = props;
+    const { placeholder, defaultValue, setSearch, isDisabled } = props;
 
     const debouncedSearch = useRef(
         debounce(async (criteria) => {
@@ -34,7 +35,7 @@ const FreeTextSearch = (props: Props) => {
                 <InputLeftElement pointerEvents='none'>
                     <SearchIcon color='gray.300' />
                 </InputLeftElement>
-                <Input type='text' defaultValue={defaultValue} placeholder={placeholder} onChange={handleChange} />
+                <Input type='text' defaultValue={defaultValue} placeholder={placeholder} onChange={handleChange} disabled={isDisabled} />
             </InputGroup>
         </div>
     );

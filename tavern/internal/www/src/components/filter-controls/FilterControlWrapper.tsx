@@ -9,7 +9,6 @@ type Position = {
 }
 
 export const FilterControlWrapper = ({ children, label }: { children: ReactElement, label: string }) => {
-
     const [isOpen, setIsOpen] = useState(false)
     const [position, setPosition] = useState<Position>({ top: 0, left: 0 })
 

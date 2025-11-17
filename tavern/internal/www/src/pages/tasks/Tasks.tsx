@@ -4,7 +4,7 @@ import { PageWrapper } from "../../features/page-wrapper";
 import { EmptyState, EmptyStateType } from "../../components/tavern-base-ui/EmptyState";
 import TablePagination from "../../components/tavern-base-ui/TablePagination";
 import { DEFAULT_QUERY_TYPE, PageNavItem, TableRowLimit } from "../../utils/enums";
-import { useTasks } from "./useTasks";
+import { useTasks } from "../../hooks/useTasks";
 import { Task } from "../../utils/consts";
 import { EditablePageHeader } from "./EditablePageHeader";
 import Button from "../../components/tavern-base-ui/button/Button";
@@ -55,7 +55,7 @@ const Tasks = () => {
                         <EmptyState label="No data found" details="Try creating a new quest or adjusting filters." type={EmptyStateType.noData}>
                             <Link to="/createQuest">
                                 <Button
-                                    buttonStyle={{ color: "gray", "size": "md" }}
+                                    buttonStyle={{ color: "purple", "size": "md" }}
                                     type="button"
                                 >
                                     Create new quest

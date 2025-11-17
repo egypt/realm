@@ -4,12 +4,14 @@ import { FilterBarOption } from '../utils/consts'
 const STORAGE_KEY = 'realm-filters-v1.0'
 
 export type Filters = {
+    filtersEnabled: boolean,
     questName: string,
     taskOutput: string,
     beaconFields: Array<FilterBarOption>,
 }
 
 const defaultFilters: Filters = {
+    filtersEnabled: true,
     questName: "",
     taskOutput: "",
     beaconFields: []

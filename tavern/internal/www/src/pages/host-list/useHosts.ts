@@ -26,8 +26,13 @@ export const useHosts = (pagination: boolean, id?: string) => {
 
     const updateHosts = useCallback((afterCursor?: string | undefined, beforeCursor?: string | undefined) => {
         const defaultQuery = constructDefaultQuery(afterCursor, beforeCursor);
-        const queryWithFilter =  constructFilterBasedQuery(defaultQuery, filters.beaconFields);
-        refetch(queryWithFilter);
+        if(filters.filtersEnabled){
+            const queryWithFilter =  constructFilterBasedQuery(defaultQuery, filters.beaconFields);
+            refetch(queryWithFilter);
+        }
+        else{
+            refetch(defaultQuery);
+        }
       },[filters, constructDefaultQuery, constructFilterBasedQuery, refetch]);
 
 

@@ -9,7 +9,7 @@ export const useQuests = (pagination: boolean, id?: string) => {
     const [page, setPage] = useState<number>(1);
     const {filters} = useFilters();
 
-    const constructDefaultQuery = useCallback((searchText?: string, afterCursor?: string | undefined, beforeCursor?: string | undefined) => {
+    const constructDefaultQuery = useCallback((afterCursor?: string | undefined, beforeCursor?: string | undefined) => {
         const defaultRowLimit = TableRowLimit.QuestRowLimit;
         const query = {
           "where": {
@@ -51,22 +51,9 @@ export const useQuests = (pagination: boolean, id?: string) => {
           query.before = beforeCursor ? beforeCursor : null;
         }
 
-        const whereParams = [];
-
         if(id){
-          whereParams.push({"id": id});
+          query.where.and = [{"id": id}];
         }
-
-        if(searchText){
-          whereParams.push({
-            "or": [
-            {"nameContains": searchText},
-            {"hasTomeWith": {"nameContains": searchText}}
-          ]
-          });
-        };
-
-        query.where.and = query.where.and.concat(whereParams);
 
         return query
     },[pagination, id]);
@@ -228,10 +215,26 @@ export const useQuests = (pagination: boolean, id?: string) => {
       return fq;
     },[]);
 
+    const constructQuestNameBasedQuery = useCallback((query: any, questName: string)=> {
+      let fq = query;
+
+      if(questName){
+        fq.where.and = fq.where.and.concat({
+          "nameContains": questName
+        });
+      }
+      return fq;
+    },[]);
+
     const constructFilterBasedQuery = useCallback((filters: Filters, currentQuery: any) => {
+      if(!filters.filtersEnabled){
+        return currentQuery;
+      }
+
       let fq = currentQuery;
       const {beacon: beacons, group: groups, service: services, platform: platforms, host:hosts} = getFilterNameByTypes(filters.beaconFields);
 
+      fq = constructQuestNameBasedQuery(fq, filters.questName);
       fq = constructBeaconFilterQuery(fq, beacons);
       fq = constructTagFilterQuery(fq, groups, "group");
       fq = constructTagFilterQuery(fq, services, "service");
@@ -245,7 +248,8 @@ export const useQuests = (pagination: boolean, id?: string) => {
       constructTagFilterQuery,
       constructHostFilterQuery,
       constructPlatformFilterQuery,
-      constructTaskOutputQuery
+      constructTaskOutputQuery,
+      constructQuestNameBasedQuery
     ]);
 
 
@@ -254,7 +258,7 @@ export const useQuests = (pagination: boolean, id?: string) => {
       );
 
     const updateQuestList = useCallback((afterCursor?: string | undefined, beforeCursor?: string | undefined) => {
-      const defaultQuery = constructDefaultQuery(filters.questName, afterCursor, beforeCursor);
+      const defaultQuery = constructDefaultQuery(afterCursor, beforeCursor);
       const queryWithFilter =  constructFilterBasedQuery(filters, defaultQuery) as any;
       refetch(queryWithFilter);
     },[filters, constructDefaultQuery, constructFilterBasedQuery, refetch]);

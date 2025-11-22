@@ -24,7 +24,6 @@ const HostTabs = () => {
             }
         }
     });
-    console.log(hostTaskData);
 
     const { online } = getOfflineOnlineStatus(host?.beacons || []);
 

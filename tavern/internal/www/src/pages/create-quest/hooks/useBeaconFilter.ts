@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from "react"
 import { BeaconType } from "../../../utils/consts";
 import { PrincipalAdminTypes } from "../../../utils/enums";
+import { useFilters } from "../../../context/FilterContext";
 
 export const useBeaconFilter = (beacons: Array<BeaconType>, selectedBeacons: any) => {
+    const {filters} = useFilters();
 
     const [filteredBeacons, setFilteredBeacons] = useState(beacons);
 
-    const [typeFilters, setTypeFilters] = useState([]);
+    const [typeFilters, setTypeFilters] = useState(filters.beaconFields);
 
     const [viewOnlySelected, setViewOnlySelected] = useState(false);
 
@@ -153,6 +155,7 @@ export const useBeaconFilter = (beacons: Array<BeaconType>, selectedBeacons: any
         setTypeFilters,
         viewOnlySelected,
         setViewOnlySelected,
-        setViewOnlyOnePerHost
+        setViewOnlyOnePerHost,
+        typeFilters
     }
 }

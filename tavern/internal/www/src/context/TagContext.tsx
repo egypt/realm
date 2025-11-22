@@ -17,8 +17,6 @@ export const TagContextProvider = ({ children }: { children: React.ReactNode }) 
         }
     }
     const { loading: isLoading, error, data, startPolling, stopPolling } = useQuery(GET_TAG_FILTERS, PARAMS);
-    console.log(tags);
-
 
     const getTags = useCallback((data: any) => {
         if (!data) {

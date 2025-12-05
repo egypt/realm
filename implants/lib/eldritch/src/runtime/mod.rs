@@ -104,7 +104,7 @@ mod tests {
                 parameters: HashMap::new(),
                 file_names: Vec::new(),
             },
-            want_text: format!("{}\n", r#"["info", "kill", "list", "name", "netstat"]"#),
+            want_text: format!("{}\n", r#"["find_by_name", "info", "kill", "list", "name", "netstat"]"#),
             want_error: None,
         },
         sys_bindings: TestCase {

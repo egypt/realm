@@ -7,3 +7,4 @@ target/
 
 # Also not an exec create so no Cargo.lock
 /Cargo.lock
+**/*.swp

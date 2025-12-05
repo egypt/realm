@@ -1,3 +1,4 @@
+mod find_impl;
 mod info_impl;
 mod kill_impl;
 mod list_impl;
@@ -47,5 +48,10 @@ fn methods(builder: &mut MethodsBuilder) {
     #[allow(unused_variables)]
     fn netstat<'v>(this: &ProcessLibrary, starlark_heap: &'v Heap) -> anyhow::Result<Vec<Dict<'v>>> {
         netstat_impl::netstat(starlark_heap)
+    }
+
+    #[allow(unused_variables)]
+    fn find_by_name<'v>(this: &ProcessLibrary, starlark_heap: &'v Heap, needle_name: String) -> anyhow::Result<Vec<Dict<'v>>> {
+        find_impl::find_by_name(starlark_heap, needle_name)
     }
 }
